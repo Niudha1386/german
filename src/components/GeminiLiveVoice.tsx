@@ -321,32 +321,32 @@ export const GeminiLiveVoice: React.FC<Props> = ({
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-between min-h-[calc(100vh-6rem)] w-full max-w-4xl mx-auto px-4 py-4 sm:py-6">
+    <div className="relative flex flex-col items-center justify-between min-h-[calc(100dvh-7rem)] md:min-h-[calc(100dvh-5.5rem)] w-full max-w-2xl mx-auto px-2 sm:px-3 py-2 sm:py-3.5 space-y-3 sm:space-y-4">
       {/* Top Scenario & State Bar */}
-      <div className="w-full flex flex-wrap items-center justify-between gap-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="text-2xl">{activeScenario.icon}</span>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-100">
+      <div className="w-full flex items-center justify-between gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="text-xl sm:text-2xl shrink-0">{activeScenario.icon}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100 truncate">
                 {activeScenario.titleFa}
               </span>
-              <span className="text-xs text-slate-400 font-de hidden sm:inline">
+              <span className="text-[11px] text-slate-400 font-de hidden sm:inline truncate">
                 ({activeScenario.titleDe})
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
               {activeScenario.descriptionFa}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Scenario quick switch */}
           <select
             value={scenario}
             onChange={(e) => onScenarioChange(e.target.value as ConversationScenario)}
-            className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+            className="text-[11px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1 font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer max-w-[120px] sm:max-w-none truncate"
           >
             {SCENARIOS.map((s) => (
               <option key={s.id} value={s.id}>
@@ -358,46 +358,46 @@ export const GeminiLiveVoice: React.FC<Props> = ({
           {/* Hands Free Toggle */}
           <button
             onClick={() => setHandsFree(!handsFree)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
               handsFree
                 ? 'bg-cyan-500/10 border-cyan-500 text-cyan-600 dark:text-cyan-400'
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
             }`}
             title="حالت مکالمه پیوسته خودکار"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">مکالمه پیوسته</span>
+            <Sparkles className="w-3 h-3" />
+            <span className="hidden sm:inline">پیوسته</span>
           </button>
         </div>
       </div>
 
       {/* Error alert if any */}
       {errorMsg && (
-        <div className="w-full mt-3 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2 shadow-sm">
-          <div className="flex items-center gap-2">
+        <div className="w-full p-2.5 sm:p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>{errorMsg}</span>
+            <span className="text-[11px] sm:text-xs break-words">{errorMsg}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 justify-end">
             <button
               onClick={() => setShowMicGuide(true)}
-              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] transition-colors"
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[10px] sm:text-[11px] transition-colors"
             >
-              راهنمای فعال‌سازی میکروفون
+              راهنمای میکروفون
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1 px-3 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-100 rounded-lg font-semibold text-[11px] transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-100 rounded-lg font-semibold text-[10px] sm:text-[11px] transition-colors"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>ارسال فایل صوتی</span>
+              <Upload className="w-3 h-3" />
+              <span>ارسال فایل</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Central Visualizer: Glowing Gemini Orb */}
-      <div className="relative flex flex-col items-center justify-center my-6 sm:my-8 w-full max-w-sm aspect-square">
+      {/* Central Visualizer: Glowing Gemini Orb - compact & proportional */}
+      <div className="relative flex flex-col items-center justify-center my-2 sm:my-4 w-44 h-44 sm:w-56 sm:h-56 aspect-square shrink-0">
         <canvas
           ref={canvasRef}
           className="w-full h-full rounded-full cursor-pointer transition-transform duration-300 hover:scale-105"
@@ -407,31 +407,31 @@ export const GeminiLiveVoice: React.FC<Props> = ({
         {/* Central State Icon Overlay */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           {isRecording ? (
-            <div className="flex flex-col items-center gap-1.5 text-white animate-pulse">
-              <Mic className="w-10 h-10 drop-shadow-md text-white" />
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-600/80 shadow-md">
+            <div className="flex flex-col items-center gap-1 text-white animate-pulse">
+              <Mic className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-md text-white" />
+              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-600/80 shadow-sm">
                 در حال گوش دادن...
               </span>
             </div>
           ) : isThinking ? (
-            <div className="flex flex-col items-center gap-1.5 text-white">
-              <RefreshCw className="w-8 h-8 animate-spin text-white drop-shadow-md" />
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600/80 shadow-md">
-                در حال تحلیل و فکر...
+            <div className="flex flex-col items-center gap-1 text-white">
+              <RefreshCw className="w-6 h-6 sm:w-7 sm:h-7 animate-spin text-white drop-shadow-md" />
+              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600/80 shadow-sm">
+                در حال پردازش...
               </span>
             </div>
           ) : isGeminiSpeaking ? (
-            <div className="flex flex-col items-center gap-1.5 text-white animate-bounce">
-              <Volume2 className="w-10 h-10 drop-shadow-md text-white" />
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-600/80 shadow-md">
-                در حال صحبت کردن...
+            <div className="flex flex-col items-center gap-1 text-white animate-bounce">
+              <Volume2 className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-md text-white" />
+              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-600/80 shadow-sm">
+                در حال صحبت...
               </span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1 text-white">
-              <Sparkles className="w-8 h-8 drop-shadow-md text-white/90" />
-              <span className="text-[11px] font-bold text-white/90 drop-shadow">
-                برای صحبت لمس کنید
+              <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 drop-shadow-md text-white/90" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-white/90 drop-shadow">
+                برای مکالمه لمس کنید
               </span>
             </div>
           )}
@@ -439,15 +439,15 @@ export const GeminiLiveVoice: React.FC<Props> = ({
       </div>
 
       {/* Real-time Subtitles & Latest Gemini Response */}
-      <div className="w-full max-w-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+      <div className="w-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3 sm:p-4 shadow-sm space-y-3 min-w-0">
         {/* Live speech transcription while speaking */}
         {isRecording && (
-          <div className="p-3 rounded-2xl bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800">
-            <div className="flex items-center gap-2 text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-1">
-              <Mic className="w-3.5 h-3.5 animate-pulse" />
-              <span>کلمات شما به زبان آلمانی:</span>
+          <div className="p-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-cyan-600 dark:text-cyan-400 mb-1">
+              <Mic className="w-3 h-3 animate-pulse" />
+              <span>کلمات شما:</span>
             </div>
-            <p className="font-de text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100 min-h-[1.5rem]">
+            <p className="font-de text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 min-h-[1.25rem] break-words">
               {liveTranscript || 'در حال دریافت صدای شما... آلمانی صحبت کنید'}
             </p>
           </div>
@@ -455,26 +455,26 @@ export const GeminiLiveVoice: React.FC<Props> = ({
 
         {/* Latest Gemini Response Display */}
         {latestAssistantMessage && !isRecording && (
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
+          <div className="space-y-2.5 min-w-0">
+            <div className="flex items-start justify-between gap-2 min-w-0">
+              <div className="space-y-1 flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
                     پاسخ صوتی جمینای:
                   </span>
                   {isGeminiSpeaking && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-full animate-pulse">
-                      <Volume2 className="w-3 h-3" />
-                      در حال پخش
+                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-indigo-500 bg-indigo-500/10 px-1.5 py-0.2 rounded-full animate-pulse">
+                      <Volume2 className="w-2.5 h-2.5" />
+                      پخش
                     </span>
                   )}
                 </div>
-                <p className="text-base sm:text-lg font-de font-semibold text-slate-900 dark:text-white leading-relaxed">
+                <p className="text-sm sm:text-base font-de font-semibold text-slate-900 dark:text-white leading-relaxed break-words">
                   {latestAssistantMessage.textGerman}
                 </p>
                 {latestAssistantMessage.textPersian && (
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800 break-words">
                     {latestAssistantMessage.textPersian}
                   </p>
                 )}
@@ -483,29 +483,29 @@ export const GeminiLiveVoice: React.FC<Props> = ({
               {/* Replay voice button */}
               <button
                 onClick={handleReplayLatest}
-                className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
                 title="تکرار تلفظ جمینای"
               >
-                <Volume2 className="w-5 h-5" />
+                <Volume2 className="w-4 h-4" />
               </button>
             </div>
 
             {/* Score & Evaluation Pill for last user speech */}
             {latestUserMessage?.score && (
-              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-transparent border border-emerald-500/20 rounded-2xl text-xs">
-                <div className="flex items-center gap-2 font-medium">
-                  <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-transparent border border-emerald-500/20 rounded-xl text-[11px]">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Award className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>
-                    امتیاز گفتار شما: <strong className="font-bold text-emerald-600 dark:text-emerald-400">{latestUserMessage.score.overall || 85} از ۱۰۰</strong>
+                    امتیاز: <strong className="font-bold text-emerald-600 dark:text-emerald-400">{latestUserMessage.score.overall || 85} از ۱۰۰</strong>
                   </span>
                 </div>
                 {lastEvaluation && (
                   <button
                     onClick={() => onOpenEvaluation(lastEvaluation)}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    <span>مشاهده جزئیات ارزیابی</span>
-                    <ArrowRight className="w-3 h-3" />
+                    <span>جزئیات ارزیابی</span>
+                    <ArrowRight className="w-2.5 h-2.5" />
                   </button>
                 )}
               </div>
@@ -516,14 +516,14 @@ export const GeminiLiveVoice: React.FC<Props> = ({
         {/* Suggested Quick Replies */}
         {latestAssistantMessage?.suggestedReplies && latestAssistantMessage.suggestedReplies.length > 0 && !isRecording && (
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 block mb-1.5">
-              💡 پیشنهادهایی برای پاسخ دادن (می‌توانید آن‌ها را بگویید):
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 block mb-1">
+              💡 پیشنهادهایی برای پاسخ:
             </span>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1">
               {latestAssistantMessage.suggestedReplies.map((sug, i) => (
                 <div
                   key={i}
-                  className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-de"
+                  className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-700 dark:text-slate-300 font-de max-w-full break-words"
                 >
                   "{sug.german}"
                 </div>
@@ -534,52 +534,52 @@ export const GeminiLiveVoice: React.FC<Props> = ({
       </div>
 
       {/* Bottom Microphone Control Button */}
-      <div className="w-full flex items-center justify-center gap-4 mt-6">
+      <div className="w-full flex items-center justify-center gap-3 mt-2 sm:mt-4">
+        {/* Upload Audio File Button */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="p-2.5 sm:p-3 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm transition-all"
+          title="ارسال فایل صوتی ضبط‌شده"
+        >
+          <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+        </button>
+
+        {/* Main Mic Button */}
         <button
           onClick={isRecording ? handleStopRecording : handleStartRecording}
           disabled={isThinking}
-          className={`relative group flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full shadow-2xl transition-all duration-300 transform active:scale-95 ${
+          className={`relative group flex items-center justify-center w-15 h-15 sm:w-18 sm:h-18 rounded-full shadow-lg transition-all duration-300 transform active:scale-95 ${
             isRecording
-              ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse shadow-rose-500/40 ring-8 ring-rose-500/20'
+              ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse shadow-rose-500/40 ring-6 ring-rose-500/20'
               : 'bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-blue-500/30'
           }`}
           aria-label={isRecording ? 'پایان صحبت' : 'شروع صحبت'}
         >
           {isRecording ? (
-            <MicOff className="w-8 h-8 sm:w-10 sm:h-10" />
+            <MicOff className="w-7 h-7 sm:w-8 sm:h-8" />
           ) : (
-            <Mic className="w-8 h-8 sm:w-10 sm:h-10" />
+            <Mic className="w-7 h-7 sm:w-8 sm:h-8" />
           )}
 
           {/* Ripple rings while recording */}
           {isRecording && (
             <>
-              <span className="absolute inset-0 rounded-full border-4 border-rose-400 animate-ping opacity-75" />
-              <span className="absolute -inset-2 rounded-full border-2 border-rose-300 animate-pulse opacity-50" />
+              <span className="absolute inset-0 rounded-full border-2 border-rose-400 animate-ping opacity-75" />
             </>
           )}
-        </button>
-
-        {/* Upload Audio File Button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="p-3.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md transition-all"
-          title="ارسال فایل صوتی ضبط‌شده"
-        >
-          <Upload className="w-5 h-5" />
         </button>
 
         {/* Switch to Chat Button */}
         <button
           onClick={onSwitchToChat}
-          className="p-3.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md transition-all"
+          className="p-2.5 sm:p-3 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm transition-all"
           title="مشاهده در قالب چت متنی"
         >
-          <MessageSquare className="w-5 h-5" />
+          <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 text-center mt-3">
+      <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center mt-1 px-2">
         {isRecording
           ? 'آلمانی صحبت کنید و پس از اتمام دکمه قرمز را فشار دهید.'
           : 'دکمه میکروفون را بزنید، به آلمانی صحبت کنید و جمینای با صوت به شما پاسخ می‌دهد.'}

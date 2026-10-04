@@ -34,37 +34,37 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 text-slate-900 dark:text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
+      <div className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-4 sm:p-6 text-slate-900 dark:text-slate-100 min-w-0">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 left-5 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="absolute top-3 left-3 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           aria-label="بستن"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl text-white shadow-lg shadow-cyan-500/25">
-            <Sparkles className="w-6 h-6" />
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="p-2 sm:p-2.5 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl text-white shadow-md shadow-cyan-500/25 shrink-0">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold flex items-center gap-1.5 truncate">
               گزارش تحلیلی و نمره‌دهی جمینای
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              ارزیابی جامع تلفظ، گرامر، دامنه واژگان و روانی کلام آلمانی
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              ارزیابی تلفظ، گرامر، دامنه واژگان و روانی کلام آلمانی
             </p>
           </div>
         </div>
 
         {/* Overall Score Banner */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/60 dark:to-slate-900/60 border border-slate-200/80 dark:border-slate-700/60 rounded-2xl mb-6 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/60 dark:to-slate-900/60 border border-slate-200/80 dark:border-slate-700/60 rounded-xl mb-4 items-center min-w-0">
           {/* Circular Score */}
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="relative w-24 h-24 flex items-center justify-center">
+            <div className="relative w-18 h-18 sm:w-20 sm:h-20 flex items-center justify-center shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                 <path
                   className="text-slate-200 dark:text-slate-700"
@@ -84,23 +84,23 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-black">{evaluation.overallScore}</span>
-                <span className="text-[10px] text-slate-400">از ۱۰۰</span>
+                <span className="text-xl font-black">{evaluation.overallScore}</span>
+                <span className="text-[9px] text-slate-400">از ۱۰۰</span>
               </div>
             </div>
-            <span className="mt-2 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <span className="mt-1 text-[10px] font-semibold px-2 py-0.2 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400">
               سطح سنجش: {evaluation.levelAssessment || 'B1'}
             </span>
           </div>
 
           {/* 4 Skill Metric Bars */}
-          <div className="sm:col-span-2 space-y-2.5">
+          <div className="sm:col-span-2 space-y-1.5 min-w-0">
             <div>
-              <div className="flex justify-between text-xs mb-1 font-medium">
-                <span>تلفظ و فونتیک (Aussprache)</span>
+              <div className="flex justify-between text-[11px] mb-0.5 font-medium">
+                <span>تلفظ (Aussprache)</span>
                 <span className="font-bold">{evaluation.scores.pronunciation}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-cyan-500 rounded-full transition-all duration-700"
                   style={{ width: `${evaluation.scores.pronunciation}%` }}
@@ -109,11 +109,11 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1 font-medium">
-                <span>گرامر و ترتیب کلمات (Grammatik)</span>
+              <div className="flex justify-between text-[11px] mb-0.5 font-medium">
+                <span>گرامر (Grammatik)</span>
                 <span className="font-bold">{evaluation.scores.grammar}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500 rounded-full transition-all duration-700"
                   style={{ width: `${evaluation.scores.grammar}%` }}
@@ -122,11 +122,11 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1 font-medium">
-                <span>دامنه واژگان و دقت (Wortschatz)</span>
+              <div className="flex justify-between text-[11px] mb-0.5 font-medium">
+                <span>واژگان (Wortschatz)</span>
                 <span className="font-bold">{evaluation.scores.vocabulary}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-purple-500 rounded-full transition-all duration-700"
                   style={{ width: `${evaluation.scores.vocabulary}%` }}
@@ -135,11 +135,11 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1 font-medium">
-                <span>روانی کلام و ریتم (Flüssigkeit)</span>
+              <div className="flex justify-between text-[11px] mb-0.5 font-medium">
+                <span>روانی کلام (Flüssigkeit)</span>
                 <span className="font-bold">{evaluation.scores.fluency}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all duration-700"
                   style={{ width: `${evaluation.scores.fluency}%` }}
@@ -147,7 +147,7 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
               </div>
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 pt-1">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5 truncate">
               وضعیت کلی: <span className="font-semibold text-slate-700 dark:text-slate-200">{getScoreBadgeText(evaluation.overallScore)}</span>
             </p>
           </div>
@@ -258,10 +258,10 @@ export const SpeakingScoreModal: React.FC<Props> = ({ evaluation, isOpen, onClos
         )}
 
         {/* Footer */}
-        <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex justify-end pt-2.5 border-t border-slate-200 dark:border-slate-800">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-medium rounded-xl shadow-md transition-all text-sm"
+            className="w-full sm:w-auto px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-medium rounded-xl shadow-xs transition-all text-xs sm:text-sm text-center"
           >
             متوجه شدم و ادامه مکالمه
           </button>

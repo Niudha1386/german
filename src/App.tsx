@@ -77,7 +77,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors selection:bg-blue-500/20 selection:text-blue-500">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors selection:bg-blue-500/20 selection:text-blue-500">
       {/* Top Header */}
       <GeminiHeader
         activeTab={activeTab}
@@ -91,8 +91,8 @@ export function App() {
         onResetChat={handleResetChat}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto">
+      {/* Main Content Area - Compact Framed Page */}
+      <main className="flex-1 w-full max-w-3xl mx-auto px-2 sm:px-4 py-1.5 sm:py-3 min-w-0">
         {activeTab === 'live-voice' && (
           <GeminiLiveVoice
             messages={messages}
