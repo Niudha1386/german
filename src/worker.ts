@@ -22,6 +22,36 @@ const jsonHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+/**
+ * Robust helper to call Gemini API with automatic model fallback
+ */
+async function callGeminiGenerate(apiKey: string, body: any, primaryModel = 'gemini-3.1-flash-lite') {
+  const models = [primaryModel, 'gemini-3.8-flash'];
+  let lastError: any = null;
+
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json() as any;
+      if (!res.ok) {
+        throw new Error(data.error?.message || `HTTP ${res.status}`);
+      }
+      return data;
+    } catch (e: any) {
+      lastError = e;
+      console.warn(`Model ${model} in worker failed, attempting fallback:`, e?.message);
+    }
+  }
+
+  throw lastError;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -74,7 +104,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'GEMINI_API_KEY is not configured on Cloudflare Worker' }),
+        JSON.stringify({
+          error: 'GEMINI_API_KEY is not configured on Cloudflare Worker',
+          replyGerman: 'Bitte richte den GEMINI_API_KEY in Cloudflare ein.',
+          replyPersian: 'لطفاً متغیر GEMINI_API_KEY را در داشبورد کلودفلر ورکر تنظیم کنید.',
+        }),
         { status: 500, headers: jsonHeaders }
       );
     }
@@ -126,24 +160,18 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne Markdown-Code-Bl
       parts: [{ text: m.text }],
     }));
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: systemInstruction + '\n\nBisheriger Chatverlauf:\n' + JSON.stringify(contents) }],
-          },
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json',
+    const data = await callGeminiGenerate(apiKey, {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: systemInstruction + '\n\nBisheriger Chatverlauf:\n' + JSON.stringify(contents) }],
         },
-      }),
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
     });
 
-    const data = await geminiRes.json() as any;
     const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     let parsedData;
     try {
@@ -151,7 +179,7 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne Markdown-Code-Bl
     } catch {
       parsedData = {
         replyGerman: responseText,
-        replyPersian: 'پاسخ جمینای دریافت شد.',
+        replyPersian: 'پاسخ دریافت شد.',
         suggestedReplies: [],
         keyVocabulary: [],
       };
@@ -159,11 +187,12 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne Markdown-Code-Bl
 
     return new Response(JSON.stringify(parsedData), { headers: jsonHeaders });
   } catch (error: any) {
+    console.error('Worker chat error:', error);
     return new Response(
       JSON.stringify({
         error: error.message || 'Error processing chat',
         replyGerman: 'Entschuldigung, es gab ein technisches Problem. Lass es uns gleich noch einmal versuchen!',
-        replyPersian: 'عذرخواهی می‌کنم، یک خطای موقت رخ داد. لطفاً دوباره تلاش کنید!',
+        replyPersian: 'عذرخواهی می‌کنم، یک خطای موقت رخ داد. لطفاً دوباره امتحان کنید!',
       }),
       { status: 500, headers: jsonHeaders }
     );
@@ -223,17 +252,11 @@ Antworte AUSSCHLIESSLICH als JSON:
 `;
     parts.push({ text: evaluationPrompt });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json' },
-      }),
+    const data = await callGeminiGenerate(apiKey, {
+      contents: [{ role: 'user', parts }],
+      generationConfig: { responseMimeType: 'application/json' },
     });
 
-    const data = await geminiRes.json() as any;
     const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     let parsedData;
     try {
@@ -273,8 +296,8 @@ async function handleTTS(request: Request, env: Env): Promise<Response> {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(geminiUrl, {
+    const ttsUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-lite-tts:generateContent?key=${apiKey}`;
+    const res = await fetch(ttsUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -290,7 +313,7 @@ async function handleTTS(request: Request, env: Env): Promise<Response> {
       }),
     });
 
-    const data = await geminiRes.json() as any;
+    const data = await res.json() as any;
     const base64Audio = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
     if (!base64Audio) {
@@ -321,11 +344,9 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
       return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is missing' }), { status: 500, headers: jsonHeaders });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const data = await callGeminiGenerate(
+      apiKey,
+      {
         contents: [
           {
             parts: [
@@ -334,10 +355,10 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
             ],
           },
         ],
-      }),
-    });
+      },
+      'gemini-3.5-transcribe'
+    );
 
-    const data = await geminiRes.json() as any;
     const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
 
     return new Response(JSON.stringify({ text }), { headers: jsonHeaders });

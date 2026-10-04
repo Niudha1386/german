@@ -32,6 +32,22 @@ const getAIClient = () => {
   });
 };
 
+// Helper to generate content with fallback
+const generateWithFallback = async (ai: GoogleGenAI, config: any) => {
+  try {
+    return await ai.models.generateContent({
+      ...config,
+      model: 'gemini-3.1-flash-lite',
+    });
+  } catch (err: any) {
+    console.warn('gemini-3.1-flash-lite error, attempting fallback to gemini-3.8-flash:', err?.message);
+    return await ai.models.generateContent({
+      ...config,
+      model: 'gemini-3.8-flash',
+    });
+  }
+};
+
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -105,8 +121,7 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne Markdown-Code-Bl
       parts: [{ text: m.text }],
     }));
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -217,8 +232,7 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne Code-Blöcke:
 
     parts.push({ text: evaluationPrompt });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback(ai, {
       contents: [{ role: 'user', parts }],
       config: {
         responseMimeType: 'application/json',

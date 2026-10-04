@@ -130,15 +130,6 @@ export const GeminiChat: React.FC<Props> = ({
     onAddMessage(userMsg);
 
     try {
-      // Background evaluate user message for grammar and score
-      let evalData: DetailedEvaluation | null = null;
-      try {
-        evalData = await geminiApi.evaluateSpeaking({ text, level: userLevel });
-        userMsg.score = { ...evalData.scores, overall: evalData.overallScore };
-      } catch (e) {
-        console.warn('Silent eval error:', e);
-      }
-
       const updatedHistory = [...messages, userMsg];
       const chatRes = await geminiApi.sendMessage(updatedHistory, scenario, userLevel);
 
@@ -159,6 +150,14 @@ export const GeminiChat: React.FC<Props> = ({
       handlePlayVoice(assistantMsg.id, assistantMsg.textGerman);
     } catch (err: any) {
       console.error('Chat error:', err);
+      const errMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        textGerman: 'Entschuldigung, es gab ein Verbindungsproblem. Bitte versuche es noch einmal!',
+        textPersian: 'متأسفم، مشکلی در ارتباط با سرور رخ داد. لطفاً دوباره پیام خود را ارسال کنید.',
+        timestamp: Date.now(),
+      };
+      onAddMessage(errMsg);
     } finally {
       setIsSending(false);
     }
@@ -184,20 +183,12 @@ export const GeminiChat: React.FC<Props> = ({
       const transcribed = await geminiApi.transcribeAudio(base64, mimeType);
       const text = transcribed || 'Ich übe Deutsch.';
 
-      const evalData = await geminiApi.evaluateSpeaking({
-        text,
-        audioBase64: base64,
-        mimeType,
-        level: userLevel,
-      });
-
       const userMsg: ChatMessage = {
         id: `u-${Date.now()}`,
         role: 'user',
         textGerman: text,
         audioBase64: base64,
         timestamp: Date.now(),
-        score: { ...evalData.scores, overall: evalData.overallScore },
         isAudioRecording: true,
       };
       onAddMessage(userMsg);
@@ -221,6 +212,14 @@ export const GeminiChat: React.FC<Props> = ({
       handlePlayVoice(assistantMsg.id, assistantMsg.textGerman);
     } catch (e: any) {
       console.warn('Audio send error in chat:', e);
+      const errMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        textGerman: 'Entschuldigung, die Sprachverarbeitung ist fehlgeschlagen. Bitte versuche es noch einmal!',
+        textPersian: 'پردازش پیام صوتی با خطا مواجه شد. لطفاً دوباره تلاش کنید.',
+        timestamp: Date.now(),
+      };
+      onAddMessage(errMsg);
     } finally {
       setIsSending(false);
     }
