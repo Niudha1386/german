@@ -14,6 +14,7 @@ import {
   BookOpen,
   RefreshCw,
   Sliders,
+  Upload,
 } from 'lucide-react';
 import {
   ChatMessage,
@@ -25,6 +26,7 @@ import {
 import { geminiAudio } from '../services/geminiAudioService';
 import { geminiApi } from '../services/geminiApiService';
 import { SCENARIOS } from '../data/geminiData';
+import { MicPermissionGuideModal } from './MicPermissionGuideModal';
 
 interface Props {
   messages: ChatMessage[];
@@ -54,9 +56,11 @@ export const GeminiChat: React.FC<Props> = ({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [expandedTranslations, setExpandedTranslations] = useState<Record<string, boolean>>({});
   const [expandedCorrections, setExpandedCorrections] = useState<Record<string, boolean>>({});
+  const [showMicGuide, setShowMicGuide] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recordingTimerRef = useRef<any>(null);
 
   const activeScenario = SCENARIOS.find((s) => s.id === scenario) || SCENARIOS[0];
@@ -166,25 +170,20 @@ export const GeminiChat: React.FC<Props> = ({
       await geminiAudio.startRecording((vol) => setAudioVolume(vol));
       setIsRecording(true);
     } catch (e) {
-      console.error('Mic start error:', e);
-      alert('اجازه دسترسی به میکروفون داده نشد.');
+      console.warn('Mic start error handled:', e);
+      setIsRecording(false);
+      setShowMicGuide(true);
     }
   };
 
-  // Stop voice recording & evaluate
-  const handleStopRecording = async () => {
-    if (!isRecording) return;
-    setIsRecording(false);
+  // Process audio (recording or uploaded file) in chat
+  const processChatAudio = async (base64: string, mimeType: string) => {
     setIsSending(true);
 
     try {
-      const { base64, mimeType } = await geminiAudio.stopRecording();
-
-      // Transcribe via Gemini
       const transcribed = await geminiApi.transcribeAudio(base64, mimeType);
       const text = transcribed || 'Ich übe Deutsch.';
 
-      // Detailed speaking evaluation
       const evalData = await geminiApi.evaluateSpeaking({
         text,
         audioBase64: base64,
@@ -203,7 +202,6 @@ export const GeminiChat: React.FC<Props> = ({
       };
       onAddMessage(userMsg);
 
-      // Send to chat
       const updatedHistory = [...messages, userMsg];
       const chatRes = await geminiApi.sendMessage(updatedHistory, scenario, userLevel);
 
@@ -222,9 +220,37 @@ export const GeminiChat: React.FC<Props> = ({
 
       handlePlayVoice(assistantMsg.id, assistantMsg.textGerman);
     } catch (e: any) {
-      console.error('Record send error:', e);
+      console.warn('Audio send error in chat:', e);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Stop voice recording & evaluate
+  const handleStopRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+
+    try {
+      const { base64, mimeType } = await geminiAudio.stopRecording();
+      await processChatAudio(base64, mimeType);
+    } catch (e: any) {
+      console.warn('Record send error:', e);
+      setIsSending(false);
+    }
+  };
+
+  // Handle uploaded audio file
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    try {
+      const { base64, mimeType } = await geminiAudio.fileToBase64(file);
+      await processChatAudio(base64, mimeType);
+    } catch (err) {
+      console.warn('File upload error in chat:', err);
     }
   };
 
@@ -512,6 +538,16 @@ export const GeminiChat: React.FC<Props> = ({
             {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
           </button>
 
+          {/* Upload Audio File Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSending}
+            className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+            title="ارسال فایل صوتی ضبط‌شده"
+          >
+            <Upload className="w-5 h-5" />
+          </button>
+
           {/* Text input textarea */}
           <textarea
             ref={textareaRef}
@@ -547,6 +583,26 @@ export const GeminiChat: React.FC<Props> = ({
           جمینای به طور خودکار اشتباهات گرامری را شناسایی کرده و به آلمانی صحبت کردن شما امتیاز می‌دهد.
         </p>
       </div>
+
+      {/* Hidden file input for audio uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="audio/*"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+
+      {/* Mic Permission Guide Modal */}
+      <MicPermissionGuideModal
+        isOpen={showMicGuide}
+        onClose={() => setShowMicGuide(false)}
+        onRetry={() => {
+          setShowMicGuide(false);
+          handleStartRecording();
+        }}
+        onUploadAudio={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 };

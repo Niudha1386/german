@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Volume2, Sparkles, Award, ArrowRight, RefreshCw, MessageSquare, ShieldAlert } from 'lucide-react';
+import { Mic, MicOff, Volume2, Sparkles, Award, ArrowRight, RefreshCw, MessageSquare, ShieldAlert, Upload } from 'lucide-react';
 import { ChatMessage, DetailedEvaluation, UserLevel, VoiceOption, ConversationScenario } from '../types/gemini';
 import { geminiAudio } from '../services/geminiAudioService';
 import { geminiApi } from '../services/geminiApiService';
 import { SCENARIOS } from '../data/geminiData';
+import { MicPermissionGuideModal } from './MicPermissionGuideModal';
 
 interface Props {
   messages: ChatMessage[];
@@ -35,9 +36,11 @@ export const GeminiLiveVoice: React.FC<Props> = ({
   const [handsFree, setHandsFree] = useState(false);
   const [speechRecognitionSupported, setSpeechRecognitionSupported] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showMicGuide, setShowMicGuide] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const animationFrameId = useRef<number | null>(null);
 
   const activeScenario = SCENARIOS.find((s) => s.id === scenario) || SCENARIOS[0];
@@ -170,30 +173,20 @@ export const GeminiLiveVoice: React.FC<Props> = ({
       });
       setIsRecording(true);
     } catch (err: any) {
-      console.error('Mic access error:', err);
-      setErrorMsg('دسترسی به میکروفون میسر نشد. لطفاً در مرورگر اجازه دسترسی به میکروفون را فعال کنید.');
+      console.warn('Mic access issue handled:', err);
       setIsRecording(false);
+      setShowMicGuide(true);
+      setErrorMsg('دسترسی به میکروفون تایید نشد (Permission denied). لطفاً در تنظیمات مرورگر به میکروفون اجازه دهید یا فایل صوتی ارسال کنید.');
     }
   };
 
-  // Stop Recording and Process with Gemini
-  const handleStopRecording = async () => {
-    if (!isRecording) return;
-    setIsRecording(false);
+  // Process audio (from mic or uploaded file) with Gemini
+  const processAudioWithGemini = async (base64: string, mimeType: string, knownText?: string) => {
     setIsThinking(true);
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
-    }
+    setErrorMsg(null);
 
     try {
-      const { base64, mimeType } = await geminiAudio.stopRecording();
-
-      // Transcribe via Gemini if liveTranscript is empty
-      let recognizedText = liveTranscript.trim();
+      let recognizedText = (knownText || liveTranscript || '').trim();
       if (!recognizedText) {
         try {
           recognizedText = await geminiApi.transcribeAudio(base64, mimeType);
@@ -261,7 +254,6 @@ export const GeminiLiveVoice: React.FC<Props> = ({
         () => setIsGeminiSpeaking(true),
         () => {
           setIsGeminiSpeaking(false);
-          // If handsFree is on, start listening again automatically after speaking
           if (handsFree) {
             setTimeout(() => {
               handleStartRecording();
@@ -270,10 +262,48 @@ export const GeminiLiveVoice: React.FC<Props> = ({
         }
       );
     } catch (err: any) {
-      console.error('Live voice processing error:', err);
+      console.warn('Live voice processing error:', err);
       setIsThinking(false);
       setIsGeminiSpeaking(false);
       setErrorMsg('خطایی در پردازش صدا یا ارتباط با جمینای رخ داد. لطفاً دوباره امتحان کنید.');
+    }
+  };
+
+  // Stop Recording and Process with Gemini
+  const handleStopRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    setIsThinking(true);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+
+    try {
+      const { base64, mimeType } = await geminiAudio.stopRecording();
+      await processAudioWithGemini(base64, mimeType, liveTranscript);
+    } catch (err: any) {
+      console.warn('Stop recording error:', err);
+      setIsThinking(false);
+      setErrorMsg('خطا در دریافت صدای ضبط‌شده.');
+    }
+  };
+
+  // Handle uploaded audio file (fallback for when mic is blocked)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    try {
+      const { base64, mimeType } = await geminiAudio.fileToBase64(file);
+      await processAudioWithGemini(base64, mimeType);
+    } catch (err) {
+      console.warn('File upload error:', err);
+      setErrorMsg('خطا در خواندن فایل صوتی.');
     }
   };
 
@@ -343,9 +373,26 @@ export const GeminiLiveVoice: React.FC<Props> = ({
 
       {/* Error alert if any */}
       {errorMsg && (
-        <div className="w-full mt-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
+        <div className="w-full mt-3 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowMicGuide(true)}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] transition-colors"
+            >
+              راهنمای فعال‌سازی میکروفون
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1 px-3 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-100 rounded-lg font-semibold text-[11px] transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>ارسال فایل صوتی</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -513,6 +560,15 @@ export const GeminiLiveVoice: React.FC<Props> = ({
           )}
         </button>
 
+        {/* Upload Audio File Button */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="p-3.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md transition-all"
+          title="ارسال فایل صوتی ضبط‌شده"
+        >
+          <Upload className="w-5 h-5" />
+        </button>
+
         {/* Switch to Chat Button */}
         <button
           onClick={onSwitchToChat}
@@ -528,6 +584,26 @@ export const GeminiLiveVoice: React.FC<Props> = ({
           ? 'آلمانی صحبت کنید و پس از اتمام دکمه قرمز را فشار دهید.'
           : 'دکمه میکروفون را بزنید، به آلمانی صحبت کنید و جمینای با صوت به شما پاسخ می‌دهد.'}
       </p>
+
+      {/* Hidden file input for audio uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="audio/*"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+
+      {/* Mic Permission Guide Modal */}
+      <MicPermissionGuideModal
+        isOpen={showMicGuide}
+        onClose={() => setShowMicGuide(false)}
+        onRetry={() => {
+          setShowMicGuide(false);
+          handleStartRecording();
+        }}
+        onUploadAudio={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 };

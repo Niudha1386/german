@@ -17,13 +17,23 @@ class GeminiAudioService {
    */
   async startRecording(onVolumeChange?: (volume: number) => void): Promise<void> {
     this.audioChunks = [];
-    this.mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+    
+    try {
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.message?.includes('Permission denied')) {
+        const customErr = new Error('دسترسی به میکروفون توسط کاربر یا مرورگر تایید نشد (Permission Denied).');
+        customErr.name = 'PermissionDenied';
+        throw customErr;
+      }
+      throw err;
+    }
 
     // Setup audio analyzer for visualizer
     try {
@@ -144,6 +154,11 @@ class GeminiAudioService {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  }
+
+  async fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
+    const base64 = await this.blobToBase64(file);
+    return { base64, mimeType: file.type || 'audio/webm' };
   }
 
   /**

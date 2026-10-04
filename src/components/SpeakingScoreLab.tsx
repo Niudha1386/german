@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Mic,
   MicOff,
@@ -10,10 +10,12 @@ import {
   Volume2,
   ArrowRight,
   BookOpen,
+  Upload,
 } from 'lucide-react';
 import { UserLevel, DetailedEvaluation, VoiceOption } from '../types/gemini';
 import { geminiAudio } from '../services/geminiAudioService';
 import { geminiApi } from '../services/geminiApiService';
+import { MicPermissionGuideModal } from './MicPermissionGuideModal';
 
 interface Props {
   userLevel: UserLevel;
@@ -27,6 +29,9 @@ export const SpeakingScoreLab: React.FC<Props> = ({ userLevel, voice }) => {
   const [recordedAudioBase64, setRecordedAudioBase64] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<DetailedEvaluation | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showMicGuide, setShowMicGuide] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sampleSentences = [
     { de: 'Ich wohne seit zwei Jahren in Deutschland und lerne jeden Tag Deutsch.', fa: 'من دو سال است در آلمان زندگی می‌کنم و هر روز آلمانی می‌خوانم.' },
@@ -40,8 +45,11 @@ export const SpeakingScoreLab: React.FC<Props> = ({ userLevel, voice }) => {
     try {
       await geminiAudio.startRecording();
       setIsRecording(true);
-    } catch {
-      setErrorMsg('اجازه دسترسی به میکروفون یافت نشد.');
+    } catch (err) {
+      console.warn('Mic access error in lab:', err);
+      setIsRecording(false);
+      setShowMicGuide(true);
+      setErrorMsg('دسترسی به میکروفون تایید نشد (Permission denied).');
     }
   };
 
@@ -68,8 +76,38 @@ export const SpeakingScoreLab: React.FC<Props> = ({ userLevel, voice }) => {
 
       setEvaluation(evalResult);
     } catch (e: any) {
-      console.error('Speech lab evaluation error:', e);
+      console.warn('Speech lab evaluation error:', e);
       setErrorMsg('خطا در ارزیابی صدا. لطفاً دوباره تلاش کنید.');
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setIsEvaluating(true);
+    setErrorMsg(null);
+
+    try {
+      const { base64, mimeType } = await geminiAudio.fileToBase64(file);
+      setRecordedAudioBase64(base64);
+
+      const transcribed = await geminiApi.transcribeAudio(base64, mimeType);
+      if (transcribed) setInputText(transcribed);
+
+      const evalResult = await geminiApi.evaluateSpeaking({
+        text: transcribed,
+        audioBase64: base64,
+        mimeType,
+        level: userLevel,
+      });
+
+      setEvaluation(evalResult);
+    } catch (e) {
+      console.warn('File upload eval error:', e);
+      setErrorMsg('خطا در پردازش و ارزیابی فایل صوتی.');
     } finally {
       setIsEvaluating(false);
     }
@@ -150,19 +188,32 @@ export const SpeakingScoreLab: React.FC<Props> = ({ userLevel, voice }) => {
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-          {/* Record button */}
-          <button
-            onClick={isRecording ? handleStopRecordAndEvaluate : handleStartRecord}
-            disabled={isEvaluating}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all shadow-md ${
-              isRecording
-                ? 'bg-rose-600 text-white animate-pulse shadow-rose-500/20'
-                : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 shadow-blue-500/20'
-            }`}
-          >
-            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            <span>{isRecording ? 'توقف ضبط و نمره‌دهی' : 'ضبط صدا با میکروفون'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Record button */}
+            <button
+              onClick={isRecording ? handleStopRecordAndEvaluate : handleStartRecord}
+              disabled={isEvaluating}
+              className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all shadow-md ${
+                isRecording
+                  ? 'bg-rose-600 text-white animate-pulse shadow-rose-500/20'
+                  : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 shadow-blue-500/20'
+              }`}
+            >
+              {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              <span>{isRecording ? 'توقف ضبط و نمره‌دهی' : 'ضبط صدا با میکروفون'}</span>
+            </button>
+
+            {/* Upload audio file button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isEvaluating || isRecording}
+              className="flex items-center gap-1.5 px-4 py-3 rounded-2xl font-semibold text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors"
+              title="بارگذاری فایل صوتی به جای میکروفون"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">ارسال فایل صوتی</span>
+            </button>
+          </div>
 
           {/* Evaluate text button */}
           <button
@@ -360,6 +411,26 @@ export const SpeakingScoreLab: React.FC<Props> = ({ userLevel, voice }) => {
           )}
         </div>
       )}
+
+      {/* Hidden file input for audio uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="audio/*"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+
+      {/* Mic Permission Guide Modal */}
+      <MicPermissionGuideModal
+        isOpen={showMicGuide}
+        onClose={() => setShowMicGuide(false)}
+        onRetry={() => {
+          setShowMicGuide(false);
+          handleStartRecord();
+        }}
+        onUploadAudio={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 };

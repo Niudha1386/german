@@ -5,6 +5,7 @@ import { PRONUNCIATION_CHALLENGES } from '../data/geminiData';
 import { PronunciationChallenge, VoiceOption } from '../types/gemini';
 import { geminiAudio } from '../services/geminiAudioService';
 import { geminiApi } from '../services/geminiApiService';
+import { MicPermissionGuideModal } from './MicPermissionGuideModal';
 
 interface Props {
   voice: VoiceOption;
@@ -17,6 +18,7 @@ export const PronunciationChallengesView: React.FC<Props> = ({ voice }) => {
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [showMicGuide, setShowMicGuide] = useState(false);
 
   const categories = [
     { id: 'all', label: 'همه چالش‌ها' },
@@ -40,8 +42,10 @@ export const PronunciationChallengesView: React.FC<Props> = ({ voice }) => {
     try {
       await geminiAudio.startRecording();
       setIsRecording(true);
-    } catch {
-      alert('اجازه دسترسی به میکروفون داده نشد.');
+    } catch (err) {
+      console.warn('Mic access error in challenges:', err);
+      setIsRecording(false);
+      setShowMicGuide(true);
     }
   };
 
@@ -223,6 +227,19 @@ export const PronunciationChallengesView: React.FC<Props> = ({ voice }) => {
           );
         })}
       </div>
+
+      {/* Mic Permission Guide Modal */}
+      <MicPermissionGuideModal
+        isOpen={showMicGuide}
+        onClose={() => setShowMicGuide(false)}
+        onRetry={() => {
+          setShowMicGuide(false);
+          if (activeChallengeId) {
+            const ch = PRONUNCIATION_CHALLENGES.find((c) => c.id === activeChallengeId);
+            if (ch) handleStartRecord(ch);
+          }
+        }}
+      />
     </div>
   );
 };
