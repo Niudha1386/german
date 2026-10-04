@@ -339,7 +339,7 @@ app.post('/api/gemini/tts', async (req, res) => {
   }
 });
 
-// Endpoint: Transcribe Audio
+// Endpoint: Transcribe Audio with Noise-Immune Filter
 app.post('/api/gemini/transcribe', async (req, res) => {
   try {
     const { audioBase64, mimeType = 'audio/webm' } = req.body;
@@ -348,30 +348,64 @@ app.post('/api/gemini/transcribe', async (req, res) => {
     }
 
     const ai = getAIClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-transcribe',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: audioBase64,
+    const promptText = `
+Du bist ein hochentwickelter Transkriptions-Experte für Deutsch.
+Aufgabe:
+1. Höre die Audiospur präzise ab.
+2. Filtere automatisch alle Hintergrundgeräusche, Rauschen, Mausklicks, Mikrofon-Kratzen oder Atemgeräusche heraus.
+3. Transkribiere die tatsächlich gesprochenen deutschen Wörter und Sätze exakt und mit korrekter deutscher Groß-/Kleinschreibung und Umlauten (ä, ö, ü, ß).
+4. Wenn nur Rauschen oder keine verständliche Sprache vorhanden ist, gib eine leere Antwort zurück.
+5. Gib AUSSCHLIESSLICH den transkribierten deutschen Text ohne Anführungszeichen, Markdown oder sonstige Erklärungen zurück.
+`.trim();
+
+    let responseText = '';
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-transcribe',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: audioBase64,
+              },
             },
-          },
-          {
-            text: 'Transcribe this German speech accurately. Return ONLY the transcribed text in German without additional commentary.',
-          },
-        ],
-      },
-    });
+            {
+              text: promptText,
+            },
+          ],
+        },
+      });
+      responseText = response.text || '';
+    } catch (err: any) {
+      console.warn('gemini-3.5-transcribe fallback to gemini-2.5-flash:', err?.message);
+      const fallbackResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: audioBase64,
+              },
+            },
+            {
+              text: promptText,
+            },
+          ],
+        },
+      });
+      responseText = fallbackResponse.text || '';
+    }
 
     res.json({
-      text: (response.text || '').trim(),
+      text: responseText.replace(/```[a-z]*/g, '').replace(/```/g, '').trim(),
     });
   } catch (error: any) {
     console.error('Transcribe error:', error);
     res.status(500).json({
       error: error.message || 'Transcription failed',
+      text: '',
     });
   }
 });

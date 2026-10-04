@@ -33,7 +33,8 @@ export const GeminiLiveVoice: React.FC<Props> = ({
   const [audioVolume, setAudioVolume] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [lastEvaluation, setLastEvaluation] = useState<DetailedEvaluation | null>(null);
-  const [handsFree, setHandsFree] = useState(false);
+  const [handsFree, setHandsFree] = useState(true); // Default to hands-free like Gemini Voice!
+  const [vadStatus, setVadStatus] = useState<'idle' | 'listening' | 'user_speaking' | 'silence_detected'>('idle');
   const [speechRecognitionSupported, setSpeechRecognitionSupported] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showMicGuide, setShowMicGuide] = useState(false);
@@ -42,6 +43,37 @@ export const GeminiLiveVoice: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const animationFrameId = useRef<number | null>(null);
+
+  // VAD & Voice Activity Detection References
+  const handsFreeRef = useRef(handsFree);
+  const isRecordingRef = useRef(isRecording);
+  const isThinkingRef = useRef(isThinking);
+  const isGeminiSpeakingRef = useRef(isGeminiSpeaking);
+  const liveTranscriptRef = useRef(liveTranscript);
+  const speechStartedRef = useRef(false);
+  const speechStartTimeRef = useRef(0);
+  const silenceTimeoutRef = useRef<any>(null);
+  const stopRecordingFnRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    handsFreeRef.current = handsFree;
+  }, [handsFree]);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    isThinkingRef.current = isThinking;
+  }, [isThinking]);
+
+  useEffect(() => {
+    isGeminiSpeakingRef.current = isGeminiSpeaking;
+  }, [isGeminiSpeaking]);
+
+  useEffect(() => {
+    liveTranscriptRef.current = liveTranscript;
+  }, [liveTranscript]);
 
   const activeScenario = SCENARIOS.find((s) => s.id === scenario) || SCENARIOS[0];
 
@@ -55,6 +87,15 @@ export const GeminiLiveVoice: React.FC<Props> = ({
     if (SpeechRecognition) {
       setSpeechRecognitionSupported(true);
     }
+
+    return () => {
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
+      geminiAudio.cancelRecording();
+      geminiAudio.stopSpeaking();
+    };
   }, []);
 
   // Animated Glowing Orb on Canvas
@@ -138,12 +179,21 @@ export const GeminiLiveVoice: React.FC<Props> = ({
     };
   }, [isRecording, isThinking, isGeminiSpeaking, audioVolume]);
 
-  // Start Voice Recording
+  // Start Voice Recording with Voice Activity Detection (VAD)
   const handleStartRecording = async () => {
     setErrorMsg(null);
     geminiAudio.stopSpeaking();
     setIsGeminiSpeaking(false);
     setLiveTranscript('');
+    liveTranscriptRef.current = '';
+
+    speechStartedRef.current = false;
+    speechStartTimeRef.current = 0;
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+    setVadStatus('listening');
 
     try {
       // Start browser live recognition preview if supported
@@ -159,8 +209,45 @@ export const GeminiLiveVoice: React.FC<Props> = ({
             for (let i = 0; i < e.results.length; i++) {
               current += e.results[i][0].transcript;
             }
-            if (current) setLiveTranscript(current);
+            if (current) {
+              setLiveTranscript(current);
+              liveTranscriptRef.current = current;
+              speechStartedRef.current = true;
+              if (speechStartTimeRef.current === 0) {
+                speechStartTimeRef.current = Date.now();
+              }
+              setVadStatus('user_speaking');
+
+              // Reset silence timer on new spoken words
+              if (silenceTimeoutRef.current) {
+                clearTimeout(silenceTimeoutRef.current);
+                silenceTimeoutRef.current = null;
+              }
+
+              // In handsFree mode, schedule stop after 1.2 seconds of silence following words
+              if (handsFreeRef.current) {
+                setVadStatus('user_speaking');
+                silenceTimeoutRef.current = setTimeout(() => {
+                  if (isRecordingRef.current && !isThinkingRef.current && handsFreeRef.current) {
+                    setVadStatus('silence_detected');
+                    stopRecordingFnRef.current();
+                  }
+                }, 1200);
+              }
+            }
           };
+
+          rec.onspeechend = () => {
+            if (handsFreeRef.current && speechStartedRef.current && !silenceTimeoutRef.current) {
+              setVadStatus('silence_detected');
+              silenceTimeoutRef.current = setTimeout(() => {
+                if (isRecordingRef.current && !isThinkingRef.current && handsFreeRef.current) {
+                  stopRecordingFnRef.current();
+                }
+              }, 900);
+            }
+          };
+
           rec.start();
           recognitionRef.current = rec;
         } catch {
@@ -170,6 +257,37 @@ export const GeminiLiveVoice: React.FC<Props> = ({
 
       await geminiAudio.startRecording((volume) => {
         setAudioVolume(volume);
+
+        // Continuous Voice Activity & Silence Detection (VAD)
+        if (handsFreeRef.current && isRecordingRef.current && !isThinkingRef.current) {
+          const SPEECH_THRESHOLD = 0.055;
+          const SILENCE_THRESHOLD = 0.04;
+
+          if (volume >= SPEECH_THRESHOLD) {
+            if (!speechStartedRef.current) {
+              speechStartedRef.current = true;
+              speechStartTimeRef.current = Date.now();
+            }
+            setVadStatus('user_speaking');
+
+            // User is actively speaking: clear any pending silence timeout
+            if (silenceTimeoutRef.current) {
+              clearTimeout(silenceTimeoutRef.current);
+              silenceTimeoutRef.current = null;
+            }
+          } else if (speechStartedRef.current && volume <= SILENCE_THRESHOLD) {
+            const speechDuration = Date.now() - speechStartTimeRef.current;
+            // Ensure the user spoke for at least 500ms before silence trigger
+            if (speechDuration >= 500 && !silenceTimeoutRef.current) {
+              setVadStatus('silence_detected');
+              silenceTimeoutRef.current = setTimeout(() => {
+                if (isRecordingRef.current && !isThinkingRef.current && handsFreeRef.current) {
+                  stopRecordingFnRef.current();
+                }
+              }, 1200); // 1.2 seconds of silence automatically sends audio!
+            }
+          }
+        }
       });
       setIsRecording(true);
     } catch (err: any) {
@@ -184,9 +302,10 @@ export const GeminiLiveVoice: React.FC<Props> = ({
   const processAudioWithGemini = async (base64: string, mimeType: string, knownText?: string) => {
     setIsThinking(true);
     setErrorMsg(null);
+    setVadStatus('idle');
 
     try {
-      let recognizedText = (knownText || liveTranscript || '').trim();
+      let recognizedText = (knownText || liveTranscriptRef.current || '').trim();
       if (!recognizedText) {
         try {
           recognizedText = await geminiApi.transcribeAudio(base64, mimeType);
@@ -254,10 +373,13 @@ export const GeminiLiveVoice: React.FC<Props> = ({
         () => setIsGeminiSpeaking(true),
         () => {
           setIsGeminiSpeaking(false);
-          if (handsFree) {
+          // When Gemini finishes speaking in handsFree mode, automatically resume listening!
+          if (handsFreeRef.current) {
             setTimeout(() => {
-              handleStartRecording();
-            }, 800);
+              if (handsFreeRef.current && !isRecordingRef.current && !isThinkingRef.current) {
+                handleStartRecording();
+              }
+            }, 600);
           }
         }
       );
@@ -265,15 +387,22 @@ export const GeminiLiveVoice: React.FC<Props> = ({
       console.warn('Live voice processing error:', err);
       setIsThinking(false);
       setIsGeminiSpeaking(false);
+      setVadStatus('idle');
       setErrorMsg('خطایی در پردازش صدا یا ارتباط با جمینای رخ داد. لطفاً دوباره امتحان کنید.');
     }
   };
 
   // Stop Recording and Process with Gemini
   const handleStopRecording = async () => {
-    if (!isRecording) return;
+    if (!isRecordingRef.current) return;
     setIsRecording(false);
     setIsThinking(true);
+    setVadStatus('idle');
+
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
 
     if (recognitionRef.current) {
       try {
@@ -284,11 +413,27 @@ export const GeminiLiveVoice: React.FC<Props> = ({
 
     try {
       const { base64, mimeType } = await geminiAudio.stopRecording();
-      await processAudioWithGemini(base64, mimeType, liveTranscript);
+      await processAudioWithGemini(base64, mimeType, liveTranscriptRef.current);
     } catch (err: any) {
       console.warn('Stop recording error:', err);
       setIsThinking(false);
       setErrorMsg('خطا در دریافت صدای ضبط‌شده.');
+    }
+  };
+
+  // Keep ref up to date for VAD callback
+  stopRecordingFnRef.current = handleStopRecording;
+
+  // Toggle Hands Free Continuous Mode
+  const handleToggleHandsFree = () => {
+    const nextVal = !handsFree;
+    setHandsFree(nextVal);
+    handsFreeRef.current = nextVal;
+    if (nextVal && !isRecording && !isThinking && !isGeminiSpeaking) {
+      handleStartRecording();
+    } else if (!nextVal && silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
     }
   };
 
@@ -409,8 +554,18 @@ export const GeminiLiveVoice: React.FC<Props> = ({
           {isRecording ? (
             <div className="flex flex-col items-center gap-1 text-white animate-pulse">
               <Mic className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-md text-white" />
-              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-600/80 shadow-sm">
-                در حال گوش دادن...
+              <span className={`text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full shadow-sm transition-colors ${
+                vadStatus === 'user_speaking'
+                  ? 'bg-emerald-600/90 text-white'
+                  : vadStatus === 'silence_detected'
+                  ? 'bg-amber-500/90 text-white'
+                  : 'bg-cyan-600/80 text-white'
+              }`}>
+                {vadStatus === 'user_speaking'
+                  ? 'در حال دریافت صحبت...'
+                  : vadStatus === 'silence_detected'
+                  ? 'پایان صحبت، ارسال...'
+                  : 'در حال گوش دادن...'}
               </span>
             </div>
           ) : isThinking ? (
@@ -424,14 +579,14 @@ export const GeminiLiveVoice: React.FC<Props> = ({
             <div className="flex flex-col items-center gap-1 text-white animate-bounce">
               <Volume2 className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-md text-white" />
               <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-600/80 shadow-sm">
-                در حال صحبت...
+                در حال صحبت جمینای...
               </span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1 text-white">
               <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 drop-shadow-md text-white/90" />
               <span className="text-[10px] sm:text-[11px] font-bold text-white/90 drop-shadow">
-                برای مکالمه لمس کنید
+                برای شروع مکالمه لمس کنید
               </span>
             </div>
           )}
@@ -579,9 +734,13 @@ export const GeminiLiveVoice: React.FC<Props> = ({
         </button>
       </div>
 
-      <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center mt-1 px-2">
-        {isRecording
-          ? 'آلمانی صحبت کنید و پس از اتمام دکمه قرمز را فشار دهید.'
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center mt-1 px-2 font-medium">
+        {handsFree
+          ? isRecording
+            ? '🎙️ حالت پیوسته فعال است: صحبت کنید، به محض سکوت هوشمندانه پاسخ داده می‌شود.'
+            : '✨ حالت مکالمه پیوسته مانند Gemini Voice فعال است (نیازی به فشردن دکمه استپ نیست).'
+          : isRecording
+          ? 'آلمانی صحبت کنید و پس از اتمام دکمه قرمز را برای پایان فشار دهید.'
           : 'دکمه میکروفون را بزنید، به آلمانی صحبت کنید و جمینای با صوت به شما پاسخ می‌دهد.'}
       </p>
 

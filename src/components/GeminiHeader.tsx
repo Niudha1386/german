@@ -1,6 +1,7 @@
-import React from 'react';
-import { Sparkles, Mic, MessageSquare, Target, Award, Moon, Sun, RotateCcw, Volume2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Sparkles, Mic, MessageSquare, Target, Award, Moon, Sun, RotateCcw, Volume2, HelpCircle } from 'lucide-react';
 import { UserLevel, VoiceOption } from '../types/gemini';
+import { CefrLevelGuideModal } from './CefrLevelGuideModal';
 
 export type AppTab = 'live-voice' | 'chat' | 'speaking-lab' | 'challenges';
 
@@ -27,6 +28,7 @@ export const GeminiHeader: React.FC<Props> = ({
   onToggleDarkMode,
   onResetChat,
 }) => {
+  const [showLevelGuide, setShowLevelGuide] = useState(false);
   const levels: UserLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1'];
   const voices: { id: VoiceOption; labelFa: string }[] = [
     { id: 'Kore', labelFa: 'کوره (صدای طبیعی و آرام)' },
@@ -125,11 +127,19 @@ export const GeminiHeader: React.FC<Props> = ({
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
-                  title={`انتخاب سطح ${lvl}`}
+                  title={`سطح ${lvl} (برای راهنمای سطوح روی آیکون راهنما بزنید)`}
                 >
                   {lvl}
                 </button>
               ))}
+              <button
+                onClick={() => setShowLevelGuide(true)}
+                className="p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                title="راهنمای سطوح زبان آلمانی A1 تا C1"
+                aria-label="راهنمای سطوح زبان آلمانی"
+              >
+                <HelpCircle className="w-3 h-3" />
+              </button>
             </div>
 
             {/* Voice Model Selector (Desktop) */}
@@ -221,6 +231,14 @@ export const GeminiHeader: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* CEFR Level Guide Modal */}
+      <CefrLevelGuideModal
+        isOpen={showLevelGuide}
+        onClose={() => setShowLevelGuide(false)}
+        currentLevel={userLevel}
+        onSelectLevel={onLevelChange}
+      />
     </header>
   );
 };
