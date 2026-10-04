@@ -1,0 +1,6 @@
+{
+  "name": "Aspekte neu B1+ واژه‌نامه هوشمند",
+  "description": "پلتفرم آموزشی جامع و واژه‌نامه تخصصی کتاب و فایل‌های صوتی Aspekte neu B1+ با فلش‌کارت، تلفظ صوتی و پیگیری پیشرفت",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

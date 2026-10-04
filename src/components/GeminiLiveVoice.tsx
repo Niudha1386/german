@@ -1,0 +1,533 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Mic, MicOff, Volume2, Sparkles, Award, ArrowRight, RefreshCw, MessageSquare, ShieldAlert } from 'lucide-react';
+import { ChatMessage, DetailedEvaluation, UserLevel, VoiceOption, ConversationScenario } from '../types/gemini';
+import { geminiAudio } from '../services/geminiAudioService';
+import { geminiApi } from '../services/geminiApiService';
+import { SCENARIOS } from '../data/geminiData';
+
+interface Props {
+  messages: ChatMessage[];
+  onAddMessage: (msg: ChatMessage) => void;
+  userLevel: UserLevel;
+  voice: VoiceOption;
+  scenario: ConversationScenario;
+  onScenarioChange: (s: ConversationScenario) => void;
+  onOpenEvaluation: (evalData: DetailedEvaluation) => void;
+  onSwitchToChat: () => void;
+}
+
+export const GeminiLiveVoice: React.FC<Props> = ({
+  messages,
+  onAddMessage,
+  userLevel,
+  voice,
+  scenario,
+  onScenarioChange,
+  onOpenEvaluation,
+  onSwitchToChat,
+}) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isGeminiSpeaking, setIsGeminiSpeaking] = useState(false);
+  const [audioVolume, setAudioVolume] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [lastEvaluation, setLastEvaluation] = useState<DetailedEvaluation | null>(null);
+  const [handsFree, setHandsFree] = useState(false);
+  const [speechRecognitionSupported, setSpeechRecognitionSupported] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const recognitionRef = useRef<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameId = useRef<number | null>(null);
+
+  const activeScenario = SCENARIOS.find((s) => s.id === scenario) || SCENARIOS[0];
+
+  // Latest assistant reply
+  const latestAssistantMessage = [...messages].reverse().find((m) => m.role === 'assistant');
+  const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+
+  // Check speech recognition support
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSpeechRecognitionSupported(true);
+    }
+  }, []);
+
+  // Animated Glowing Orb on Canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let angle = 0;
+    const render = () => {
+      const width = (canvas.width = canvas.offsetWidth * window.devicePixelRatio);
+      const height = (canvas.height = canvas.offsetHeight * window.devicePixelRatio);
+      ctx.clearRect(0, 0, width, height);
+
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const baseRadius = Math.min(width, height) * 0.24;
+
+      // Pulsing modifier based on state & audio volume
+      let pulse = 0;
+      if (isRecording) {
+        pulse = audioVolume * 45;
+      } else if (isGeminiSpeaking) {
+        pulse = Math.sin(angle * 4) * 20 + 15;
+      } else if (isThinking) {
+        pulse = Math.sin(angle * 6) * 12;
+      } else {
+        pulse = Math.sin(angle * 1.5) * 6;
+      }
+
+      const radius = baseRadius + pulse;
+
+      // Draw multi-layered iridescent fluid glow
+      const layers = [
+        { color1: 'rgba(6, 182, 212, 0.45)', color2: 'rgba(59, 130, 246, 0.0)', scale: 1.5 },
+        { color1: 'rgba(99, 102, 241, 0.55)', color2: 'rgba(168, 85, 247, 0.0)', scale: 1.25 },
+        { color1: 'rgba(14, 165, 233, 0.85)', color2: 'rgba(99, 102, 241, 0.25)', scale: 1.0 },
+      ];
+
+      layers.forEach((layer, i) => {
+        const r = radius * layer.scale;
+        const grad = ctx.createRadialGradient(
+          centerX + Math.cos(angle + i) * 15,
+          centerY + Math.sin(angle + i) * 15,
+          r * 0.1,
+          centerX,
+          centerY,
+          r
+        );
+        grad.addColorStop(0, layer.color1);
+        grad.addColorStop(1, layer.color2);
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      });
+
+      // Core bright center
+      const coreGrad = ctx.createRadialGradient(centerX, centerY, 5, centerX, centerY, radius * 0.6);
+      coreGrad.addColorStop(0, '#ffffff');
+      coreGrad.addColorStop(0.4, isRecording ? '#38bdf8' : isGeminiSpeaking ? '#818cf8' : '#67e8f9');
+      coreGrad.addColorStop(1, 'rgba(37, 99, 235, 0.2)');
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = coreGrad;
+      ctx.fill();
+
+      angle += 0.035;
+      animationFrameId.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
+  }, [isRecording, isThinking, isGeminiSpeaking, audioVolume]);
+
+  // Start Voice Recording
+  const handleStartRecording = async () => {
+    setErrorMsg(null);
+    geminiAudio.stopSpeaking();
+    setIsGeminiSpeaking(false);
+    setLiveTranscript('');
+
+    try {
+      // Start browser live recognition preview if supported
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const rec = new SpeechRecognition();
+          rec.lang = 'de-DE';
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.onresult = (e: any) => {
+            let current = '';
+            for (let i = 0; i < e.results.length; i++) {
+              current += e.results[i][0].transcript;
+            }
+            if (current) setLiveTranscript(current);
+          };
+          rec.start();
+          recognitionRef.current = rec;
+        } catch {
+          // ignore recognition init errors
+        }
+      }
+
+      await geminiAudio.startRecording((volume) => {
+        setAudioVolume(volume);
+      });
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error('Mic access error:', err);
+      setErrorMsg('دسترسی به میکروفون میسر نشد. لطفاً در مرورگر اجازه دسترسی به میکروفون را فعال کنید.');
+      setIsRecording(false);
+    }
+  };
+
+  // Stop Recording and Process with Gemini
+  const handleStopRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    setIsThinking(true);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+
+    try {
+      const { base64, mimeType } = await geminiAudio.stopRecording();
+
+      // Transcribe via Gemini if liveTranscript is empty
+      let recognizedText = liveTranscript.trim();
+      if (!recognizedText) {
+        try {
+          recognizedText = await geminiApi.transcribeAudio(base64, mimeType);
+        } catch (e) {
+          console.warn('Backend transcription fallback:', e);
+        }
+      }
+
+      if (!recognizedText) {
+        recognizedText = 'Guten Tag! Ich übe mein Deutsch mit Gemini.';
+      }
+
+      // 1. Evaluate user speech
+      let evaluationResult: DetailedEvaluation | null = null;
+      try {
+        evaluationResult = await geminiApi.evaluateSpeaking({
+          text: recognizedText,
+          audioBase64: base64,
+          mimeType,
+          level: userLevel,
+        });
+        setLastEvaluation(evaluationResult);
+      } catch (evalErr) {
+        console.warn('Speech eval err:', evalErr);
+      }
+
+      // 2. Add user message
+      const userMsg: ChatMessage = {
+        id: `u-${Date.now()}`,
+        role: 'user',
+        textGerman: recognizedText,
+        timestamp: Date.now(),
+        audioBase64: base64,
+        score: evaluationResult
+          ? { ...evaluationResult.scores, overall: evaluationResult.overallScore }
+          : undefined,
+      };
+      onAddMessage(userMsg);
+
+      // 3. Ask Gemini for conversational reply
+      const updatedHistory = [...messages, userMsg];
+      const chatRes = await geminiApi.sendMessage(updatedHistory, scenario, userLevel);
+
+      const assistantMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        textGerman: chatRes.replyGerman,
+        textPersian: chatRes.replyPersian,
+        timestamp: Date.now(),
+        corrections: chatRes.corrections,
+        score: chatRes.scoreForUserMessage,
+        suggestedReplies: chatRes.suggestedReplies,
+        keyVocabulary: chatRes.keyVocabulary,
+      };
+      onAddMessage(assistantMsg);
+
+      setIsThinking(false);
+
+      // 4. Gemini speaks back aloud
+      setIsGeminiSpeaking(true);
+      await geminiAudio.speakGerman(
+        chatRes.replyGerman,
+        voice,
+        1.0,
+        () => setIsGeminiSpeaking(true),
+        () => {
+          setIsGeminiSpeaking(false);
+          // If handsFree is on, start listening again automatically after speaking
+          if (handsFree) {
+            setTimeout(() => {
+              handleStartRecording();
+            }, 800);
+          }
+        }
+      );
+    } catch (err: any) {
+      console.error('Live voice processing error:', err);
+      setIsThinking(false);
+      setIsGeminiSpeaking(false);
+      setErrorMsg('خطایی در پردازش صدا یا ارتباط با جمینای رخ داد. لطفاً دوباره امتحان کنید.');
+    }
+  };
+
+  const handleReplayLatest = () => {
+    if (latestAssistantMessage?.textGerman) {
+      setIsGeminiSpeaking(true);
+      geminiAudio.speakGerman(
+        latestAssistantMessage.textGerman,
+        voice,
+        1.0,
+        () => setIsGeminiSpeaking(true),
+        () => setIsGeminiSpeaking(false)
+      );
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col items-center justify-between min-h-[calc(100vh-6rem)] w-full max-w-4xl mx-auto px-4 py-4 sm:py-6">
+      {/* Top Scenario & State Bar */}
+      <div className="w-full flex flex-wrap items-center justify-between gap-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <span className="text-2xl">{activeScenario.icon}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-100">
+                {activeScenario.titleFa}
+              </span>
+              <span className="text-xs text-slate-400 font-de hidden sm:inline">
+                ({activeScenario.titleDe})
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+              {activeScenario.descriptionFa}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Scenario quick switch */}
+          <select
+            value={scenario}
+            onChange={(e) => onScenarioChange(e.target.value as ConversationScenario)}
+            className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+          >
+            {SCENARIOS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.icon} {s.titleFa}
+              </option>
+            ))}
+          </select>
+
+          {/* Hands Free Toggle */}
+          <button
+            onClick={() => setHandsFree(!handsFree)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+              handsFree
+                ? 'bg-cyan-500/10 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+            }`}
+            title="حالت مکالمه پیوسته خودکار"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">مکالمه پیوسته</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Error alert if any */}
+      {errorMsg && (
+        <div className="w-full mt-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Central Visualizer: Glowing Gemini Orb */}
+      <div className="relative flex flex-col items-center justify-center my-6 sm:my-8 w-full max-w-sm aspect-square">
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full rounded-full cursor-pointer transition-transform duration-300 hover:scale-105"
+          onClick={isRecording ? handleStopRecording : handleStartRecording}
+        />
+
+        {/* Central State Icon Overlay */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          {isRecording ? (
+            <div className="flex flex-col items-center gap-1.5 text-white animate-pulse">
+              <Mic className="w-10 h-10 drop-shadow-md text-white" />
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-600/80 shadow-md">
+                در حال گوش دادن...
+              </span>
+            </div>
+          ) : isThinking ? (
+            <div className="flex flex-col items-center gap-1.5 text-white">
+              <RefreshCw className="w-8 h-8 animate-spin text-white drop-shadow-md" />
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600/80 shadow-md">
+                در حال تحلیل و فکر...
+              </span>
+            </div>
+          ) : isGeminiSpeaking ? (
+            <div className="flex flex-col items-center gap-1.5 text-white animate-bounce">
+              <Volume2 className="w-10 h-10 drop-shadow-md text-white" />
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-600/80 shadow-md">
+                در حال صحبت کردن...
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1 text-white">
+              <Sparkles className="w-8 h-8 drop-shadow-md text-white/90" />
+              <span className="text-[11px] font-bold text-white/90 drop-shadow">
+                برای صحبت لمس کنید
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Real-time Subtitles & Latest Gemini Response */}
+      <div className="w-full max-w-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+        {/* Live speech transcription while speaking */}
+        {isRecording && (
+          <div className="p-3 rounded-2xl bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800">
+            <div className="flex items-center gap-2 text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-1">
+              <Mic className="w-3.5 h-3.5 animate-pulse" />
+              <span>کلمات شما به زبان آلمانی:</span>
+            </div>
+            <p className="font-de text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-100 min-h-[1.5rem]">
+              {liveTranscript || 'در حال دریافت صدای شما... آلمانی صحبت کنید'}
+            </p>
+          </div>
+        )}
+
+        {/* Latest Gemini Response Display */}
+        {latestAssistantMessage && !isRecording && (
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    پاسخ صوتی جمینای:
+                  </span>
+                  {isGeminiSpeaking && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-full animate-pulse">
+                      <Volume2 className="w-3 h-3" />
+                      در حال پخش
+                    </span>
+                  )}
+                </div>
+                <p className="text-base sm:text-lg font-de font-semibold text-slate-900 dark:text-white leading-relaxed">
+                  {latestAssistantMessage.textGerman}
+                </p>
+                {latestAssistantMessage.textPersian && (
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800">
+                    {latestAssistantMessage.textPersian}
+                  </p>
+                )}
+              </div>
+
+              {/* Replay voice button */}
+              <button
+                onClick={handleReplayLatest}
+                className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
+                title="تکرار تلفظ جمینای"
+              >
+                <Volume2 className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Score & Evaluation Pill for last user speech */}
+            {latestUserMessage?.score && (
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-transparent border border-emerald-500/20 rounded-2xl text-xs">
+                <div className="flex items-center gap-2 font-medium">
+                  <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>
+                    امتیاز گفتار شما: <strong className="font-bold text-emerald-600 dark:text-emerald-400">{latestUserMessage.score.overall || 85} از ۱۰۰</strong>
+                  </span>
+                </div>
+                {lastEvaluation && (
+                  <button
+                    onClick={() => onOpenEvaluation(lastEvaluation)}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <span>مشاهده جزئیات ارزیابی</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Suggested Quick Replies */}
+        {latestAssistantMessage?.suggestedReplies && latestAssistantMessage.suggestedReplies.length > 0 && !isRecording && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 block mb-1.5">
+              💡 پیشنهادهایی برای پاسخ دادن (می‌توانید آن‌ها را بگویید):
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {latestAssistantMessage.suggestedReplies.map((sug, i) => (
+                <div
+                  key={i}
+                  className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-de"
+                >
+                  "{sug.german}"
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Microphone Control Button */}
+      <div className="w-full flex items-center justify-center gap-4 mt-6">
+        <button
+          onClick={isRecording ? handleStopRecording : handleStartRecording}
+          disabled={isThinking}
+          className={`relative group flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full shadow-2xl transition-all duration-300 transform active:scale-95 ${
+            isRecording
+              ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse shadow-rose-500/40 ring-8 ring-rose-500/20'
+              : 'bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-blue-500/30'
+          }`}
+          aria-label={isRecording ? 'پایان صحبت' : 'شروع صحبت'}
+        >
+          {isRecording ? (
+            <MicOff className="w-8 h-8 sm:w-10 sm:h-10" />
+          ) : (
+            <Mic className="w-8 h-8 sm:w-10 sm:h-10" />
+          )}
+
+          {/* Ripple rings while recording */}
+          {isRecording && (
+            <>
+              <span className="absolute inset-0 rounded-full border-4 border-rose-400 animate-ping opacity-75" />
+              <span className="absolute -inset-2 rounded-full border-2 border-rose-300 animate-pulse opacity-50" />
+            </>
+          )}
+        </button>
+
+        {/* Switch to Chat Button */}
+        <button
+          onClick={onSwitchToChat}
+          className="p-3.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md transition-all"
+          title="مشاهده در قالب چت متنی"
+        >
+          <MessageSquare className="w-5 h-5" />
+        </button>
+      </div>
+
+      <p className="text-xs text-slate-400 dark:text-slate-500 text-center mt-3">
+        {isRecording
+          ? 'آلمانی صحبت کنید و پس از اتمام دکمه قرمز را فشار دهید.'
+          : 'دکمه میکروفون را بزنید، به آلمانی صحبت کنید و جمینای با صوت به شما پاسخ می‌دهد.'}
+      </p>
+    </div>
+  );
+};
